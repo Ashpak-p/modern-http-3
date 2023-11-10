@@ -1,4 +1,3 @@
-
 import { z } from "zod";
 import { notesSchema } from "./notes";
 
@@ -15,13 +14,9 @@ export const updateNoteRequestSchema = z.object({
   date: z.number().int().min(Date.now()).optional(),
 });
 
-
-
-
 export const createNoteRequestSchema = z.object({
-  text: z.string().min(5).max(5000).optional(),
+  text: z.string().min(5).max(5000),
   date: z.number().int().min(Date.now()).optional(),
 });
-
 
 export const notes = notesSchema;
