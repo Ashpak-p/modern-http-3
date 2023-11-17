@@ -7,11 +7,18 @@ import {
   createNote,
   Note,
   deleteNote,
-  getAll,
   getNote,
   updateNote,
+  getPaginated,
+  getNoteByText,
 } from "./notes";
-import {createNoteRequestSchema, getSingleNoteSchema, updateNoteRequestSchema } from "./schema";
+import {
+  createNoteRequestSchema,
+  getPaginatedNotesSchema,
+  getSingleNoteSchema,
+  updateNoteRequestSchema,
+} from "./schema";
+// import { parse } from "path";
 
 const app = new Hono();
 
@@ -23,14 +30,14 @@ app.use(
   "*",
   cors({
     origin: ["https://seen.red"],
-  }),
+  })
 );
 
 // TODO: Pagination
 
 app.post("/", async (c) => {
   // CREATE
-  let data: unknown;
+  let data : Partial<Note>
 
   try {
     data = await c.req.json();
@@ -57,10 +64,10 @@ app.post("/", async (c) => {
 
   let success = true;
   let message = "Successfully added the note";
-  let notes: Note[];
+  let notes: Note | undefined;
 
   try {
-    notes = await getAll();
+    notes = await getNoteByText(validatedData.text);
   } catch (error) {
     c.status(500);
     success = false;
@@ -69,11 +76,10 @@ app.post("/", async (c) => {
     return c.json({ success, message });
   }
 
-  if (notes.find((x) => x.text === validatedData.text)) {
+  if (notes) {
     c.status(400);
     return c.json({ success: false, message: "already exists" });
   }
-
 
   const newNote: Partial<Note> = {
     text: validatedData.text,
@@ -92,7 +98,7 @@ app.post("/", async (c) => {
 
   console.log({ dbNote });
 
-  notes.push(dbNote);
+  // notes.push(dbNote);
 
   return c.json({ message, note: dbNote });
 });
@@ -159,7 +165,7 @@ app.put("/:id", async (c) => {
     });
   }
 
-  const id = result.data;
+  // const id = result.data;
 
   const validation = updateNoteRequestSchema.safeParse(data);
 
@@ -175,10 +181,16 @@ app.put("/:id", async (c) => {
 
   let success = true;
   let message = "Successfully retrieved";
-  let notes: Note[];
+  let note: Note | undefined;
 
   try {
-    notes = await getAll();
+    const found = await getNote(result.data);
+
+    if (!found) {
+      c.status(404);
+      return c.json({ success: false, message: "note not found" });
+    }
+    note = found
   } catch (error) {
     c.status(500);
     success = false;
@@ -187,21 +199,18 @@ app.put("/:id", async (c) => {
     return c.json({ success, message });
   }
 
-  const foundIndex = notes.findIndex((n) => n.id === id);
+  // const foundIndex = notes.findIndex((n) => n.id === id);
 
-  if (foundIndex === -1) {
-    c.status(404);
-    return c.json({ success: false, message: "note not found" });
-  }
+  
 
-  notes[foundIndex] = {
-    id: notes[foundIndex].id,
-    text: validatedData.text || notes[foundIndex].text,
-    date: new Date(validatedData.date || notes[foundIndex].date.getTime()),
+  note = {
+    id: note.id,
+    text: validatedData.text || note.text,
+    date: new Date(validatedData.date || note.date.getTime()),
   };
 
   try {
-    await updateNote(notes[foundIndex].id, notes[foundIndex]);
+    await updateNote(note.id, note);
   } catch (error) {
     console.error(error);
     c.status(500);
@@ -227,10 +236,17 @@ app.delete("/:id", async (c) => {
 
   let success = true;
   let message = "Successfully deleted";
-  let notes: Note[];
+  let note: Note | undefined;
 
   try {
-    notes = await getAll();
+     const found = await getNote(result.data);
+
+     if (!found) {
+      c.status(404);
+      return c.json({ success: false, message: "note not found" });
+    }
+    
+    note = found
   } catch (error) {
     c.status(500);
     success = false;
@@ -239,16 +255,6 @@ app.delete("/:id", async (c) => {
     return c.json({ success, message });
   }
 
-  const foundIndex = notes.findIndex((n) => n.id === id);
-
-
-
-  if (foundIndex === -1) {
-    c.status(404);
-    return c.json({  success: false, message: "note not found" });
-  }
-
-  notes.splice(foundIndex, 1);
 
   deleteNote(id);
 
@@ -260,8 +266,23 @@ app.get("/", async (c) => {
   let message = "Successfully retrieved";
   let notes: Note[];
 
+  const limit = parseInt(c.req.query("limit") || "10");
+  const page = parseInt(c.req.query("page") || "0");
+  const id = parseInt(c.req.query("page") || "0");
+
+  const result = getPaginatedNotesSchema.safeParse({ limit, page, id });
+
+  if (!result.success) {
+    c.status(400);
+    return c.json({
+      success: false,
+      message: JSON.parse(result.error.message)[0].message,
+    });
+  }
+
   try {
-    notes = await getAll();
+    notes = await getPaginated(
+      result.data as Parameters<typeof getPaginated> [0]);
   } catch (error) {
     c.status(500);
     success = false;
