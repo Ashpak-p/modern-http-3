@@ -2,8 +2,6 @@ import { bigint, datetime, mysqlTable, text } from "drizzle-orm/mysql-core";
 import { eq, gt, sql } from "drizzle-orm";
 
 import { db } from "./db";
-import { timestamp } from "drizzle-orm/pg-core";
-import { promises } from "dns";
 
 const TABLE_NAME = "notes";
 
